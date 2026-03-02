@@ -201,6 +201,17 @@ for (const district of DISTRICTS) {
   }
 }
 
+// Fine-tune SF/MF shades around the base residential blue (#93c5fd).
+const SF_LIGHT = "#b5d8fe";
+const MF_DARK = "#6eaefb";
+
+for (const code of ["SF1", "SF2"]) {
+  ZONE_COLOR_MAP[code] = SF_LIGHT;
+}
+for (const code of ["MF1", "MF2", "MF3", "MFUniv", "MHC"]) {
+  ZONE_COLOR_MAP[code] = MF_DARK;
+}
+
 /** Maps each zone code to its full description */
 export const ZONE_DESCRIPTION_MAP: Record<string, string> = {};
 for (const district of DISTRICTS) {

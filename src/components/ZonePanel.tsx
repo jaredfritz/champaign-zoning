@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import {
   ZoneFeatureProperties,
+  ZONE_DETAILS,
   areaToAcres,
   getZoneDescription,
   getZoneDistrict,
@@ -84,8 +85,8 @@ export default function ZonePanel({ feature, onClose }: ZonePanelProps) {
         <Row label="Zone Code" value={props.zoning_code} />
         <div className="py-1.5 border-b border-gray-50">
           <span className="text-sm text-gray-500">Description</span>
-          <div className="text-sm font-medium text-gray-800 mt-0.5">
-            {district?.description || "—"}
+          <div className="text-sm text-gray-800 mt-0.5 leading-relaxed">
+            {ZONE_DETAILS[props.zoning_code] || "—"}
           </div>
         </div>
       </div>

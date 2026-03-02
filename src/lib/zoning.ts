@@ -252,6 +252,38 @@ export function getZoneDistrict(code: string): ZoneDistrict | undefined {
   return ZONE_DISTRICT_MAP[code];
 }
 
+// ─── Zone detail descriptions ─────────────────────────────────────────────────
+
+/** Paragraph-format descriptions shown in the ZonePanel sidebar */
+export const ZONE_DETAILS: Record<string, string> = {
+  // Residential
+  SF1: "This district mandates detached single-family dwellings, artificially restricting housing supply by prohibiting multi-unit development by right.",
+  SF2: "While allowing duplexes, this district still imposes a low-density ceiling by restricting common lot-line dwellings to a maximum of two units.",
+  MF1: "This district provides for low-rise, low-density apartment buildings, typically two to three stories in height.",
+  MF2: "This district is intended for compact development that serves as a transition between major travel corridors or commercial areas and single-family neighborhoods.",
+  MF3: "This district allows for a high-density mix of multifamily housing and offices, with limited provision for neighborhood-serving retail.",
+  MFUniv: "This district is designed to support high-density student housing and diverse transportation choices near the University of Illinois campus.",
+  MHC: "This district provides for unified manufactured housing developments on leasable pads, often serving as a residential transition zone.",
+  // In-Town
+  "IT-SF1": "This district prioritizes the preservation of existing single-family structures, generally restricting new density to conversions of older homes.",
+  "IT-SF2": "This district supports traditional neighborhood patterns but caps residential conversions at a maximum of three units regardless of building size.",
+  "IT-MR1": "This district offers a range of housing types from single-family to small-scale multifamily near Downtown.",
+  "IT-MR2": "This district provides for a variety of housing types, allowing for larger-scale multifamily structures than the IT-MR1 district.",
+  "IT-MX": "This district focuses on a mix of residential and office uses west of Downtown to provide a transition of intensity to adjacent neighborhoods.",
+  // Commercial
+  CO: "This district is intended for freestanding office buildings and office parks, providing a low-intensity transition between residential and industrial areas.",
+  CN: "This district facilitates convenience shopping and personal services designed to meet the daily needs of surrounding residential neighborhoods.",
+  CG: "This high-intensity district accommodates a wide range of regional retail and services but limits new residential development to the second story or higher.",
+  CB1: "This district promotes a healthy urban built environment by supporting medium-intensity mixed-use development and removing mandatory on-site parking requirements.",
+  CB2: "As the city's most vibrant zone, this district supports high-density growth and a strong public realm without the burden of mandatory parking minimums.",
+  CB3: "This pedestrian-oriented district creates a high-quality public space by prioritizing walking and transit over automobile-oriented development.",
+  CI: "This district provides for a mix of commercial and light industrial uses, often in redevelopment areas surrounding Downtown.",
+  // Industrial
+  IBP: "This district is intended for large-scale corporate headquarters or office campuses requiring high visibility and interstate access.",
+  I1: "This district accommodates light industrial activities such as wholesale, distribution, and assembly that minimize off-site impacts.",
+  I2: "This district is reserved for intense industrial operations that may produce significant off-site impacts or handle hazardous materials.",
+};
+
 // ─── Selection helpers ────────────────────────────────────────────────────────
 
 export type SelectionState = "all" | "partial" | "none";

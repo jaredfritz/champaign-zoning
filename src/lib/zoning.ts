@@ -217,6 +217,13 @@ for (const code of ["MF1", "MF2", "MF3", "MFUniv", "MHC"]) {
   ZONE_COLOR_MAP[code] = MF_DARK;
 }
 
+// Fine-tune CB shades — slightly darker than the base commercial yellow (#fcd34d).
+const CB_DARK = "#fbbf24";
+
+for (const code of ["CB1", "CB2", "CB3"]) {
+  ZONE_COLOR_MAP[code] = CB_DARK;
+}
+
 /** Maps each zone code to its full description */
 export const ZONE_DESCRIPTION_MAP: Record<string, string> = {};
 for (const district of DISTRICTS) {

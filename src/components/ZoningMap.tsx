@@ -202,6 +202,7 @@ export default function ZoningMap({
     inBuildMode && activeBuild!.id === "fourplex"
       ? "Provisional; ground-floor restrictions"
       : "Provisional; restrictions apply";
+  const showProvisionalLegend = inBuildMode && (activeBuild!.provisionalCodes?.length ?? 0) > 0;
 
   // Active fill color (normal vs build)
   const activeFillBase = inBuildMode ? buildFillColor! : fillColor;
@@ -307,13 +308,15 @@ export default function ZoningMap({
               />
               <span>Allowed by right</span>
             </div>
-            <div className="flex items-center gap-2 text-xs text-gray-600">
-              <div
-                className="w-4 h-4 rounded-sm flex-shrink-0"
-                style={{ backgroundColor: BUILD_COLORS.provisional }}
-              />
-              <span>{provisionalLegendLabel}</span>
-            </div>
+            {showProvisionalLegend && (
+              <div className="flex items-center gap-2 text-xs text-gray-600">
+                <div
+                  className="w-4 h-4 rounded-sm flex-shrink-0"
+                  style={{ backgroundColor: BUILD_COLORS.provisional }}
+                />
+                <span>{provisionalLegendLabel}</span>
+              </div>
+            )}
             <div className="flex items-center gap-2 text-xs text-gray-600">
               <div
                 className="w-4 h-4 rounded-sm flex-shrink-0 relative overflow-hidden"

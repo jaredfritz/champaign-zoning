@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Map, { Layer, Marker, Source, MapMouseEvent, MapRef } from "react-map-gl/maplibre";
-import type { FilterSpecification, DataDrivenPropertyValueSpecification, ExpressionSpecification } from "maplibre-gl";
+import type { FilterSpecification, DataDrivenPropertyValueSpecification, ExpressionSpecification, Map as MapLibreMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
   ZONE_COLOR_MAP,
@@ -14,6 +14,55 @@ import { BuildType, BUILD_COLORS } from "@/lib/buildTypes";
 
 const TILE_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 const CHAMPAIGN_CENTER = { lng: -88.2434, lat: 40.1164 };
+
+function applyThoroughfareLabelDraft(map: MapLibreMap) {
+  const style = map.getStyle();
+  if (!style?.layers) return;
+
+  for (const layer of style.layers) {
+    if (layer.type !== "symbol") continue;
+    const layerDef = layer as {
+      id: string;
+      layout?: Record<string, unknown>;
+      source?: string;
+      "source-layer"?: string;
+    };
+    const hasTextField = Boolean(layerDef.layout?.["text-field"]);
+    if (!hasTextField) continue;
+
+    const id = layerDef.id.toLowerCase();
+    const sourceLayer = (layerDef["source-layer"] ?? "").toLowerCase();
+    const isRoadLabelLayer =
+      id.includes("road") ||
+      id.includes("street") ||
+      id.includes("highway") ||
+      sourceLayer.includes("transport") ||
+      sourceLayer.includes("road");
+    if (!isRoadLabelLayer) continue;
+
+    try {
+      // Keep original style and only reveal major-road labels earlier.
+      const isMajorRoadNameLayer =
+        id.includes("highway") ||
+        id.includes("major") ||
+        id.includes("primary") ||
+        id.includes("trunk") ||
+        id.includes("motorway");
+      if (!isMajorRoadNameLayer) continue;
+
+      const min = typeof (layer as { minzoom?: unknown }).minzoom === "number"
+        ? (layer as { minzoom?: number }).minzoom!
+        : 0;
+      const max = typeof (layer as { maxzoom?: unknown }).maxzoom === "number"
+        ? (layer as { maxzoom?: number }).maxzoom!
+        : 24;
+      const loweredMin = Math.max(0, min - 2);
+      map.setLayerZoomRange(layerDef.id, loweredMin, max);
+    } catch {
+      // Ignore style-layer mismatches across third-party basemap style versions.
+    }
+  }
+}
 
 function darken(hex: string): string {
   const n = parseInt(hex.slice(1), 16);
@@ -112,6 +161,9 @@ export default function ZoningMap({
       }
     };
     img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+
+    // Draft map readability tuning: stronger major thoroughfare labels.
+    applyThoroughfareLabelDraft(map);
   }, []);
 
   // Fly to searched address when pin changes

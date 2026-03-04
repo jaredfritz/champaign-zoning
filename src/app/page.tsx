@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { fetchZoningGeoJSON } from "@/lib/api";
 import ZoningClient from "@/components/ZoningClient";
 import permitsData from "@/data/residential-permits.json";
@@ -13,5 +14,9 @@ export default async function Home() {
     data = await res.json();
   }
 
-  return <ZoningClient data={data} permitsData={permitsData as GeoJSON.FeatureCollection} />;
+  return (
+    <Suspense fallback={<div className="h-[100dvh] bg-gray-50" />}>
+      <ZoningClient data={data} permitsData={permitsData as GeoJSON.FeatureCollection} />
+    </Suspense>
+  );
 }

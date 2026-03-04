@@ -119,8 +119,7 @@ export default function ZonePanel({ feature, permit, activeBuild, onClose }: Zon
               style={{ backgroundColor: permit.buildingType === "MF" ? "#E69F00" : "#0072B2" }}
             />
             <div>
-              <div className="text-xl font-bold text-gray-900">{permit.permitNo}</div>
-              <div className="text-sm text-gray-500">Residential Permit</div>
+              <div className="text-xl font-bold text-gray-900 break-words leading-tight">{permit.address}</div>
             </div>
           </div>
           <button
@@ -135,7 +134,6 @@ export default function ZonePanel({ feature, permit, activeBuild, onClose }: Zon
           <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Permit Details</div>
           <Row label="Permit_No" value={permit.permitNo} />
           <Row label="Year" value={permit.year ?? "—"} />
-          <Row label="Address" value={permit.address} />
           <Row label="Building_Type" value={permit.buildingType} />
           <Row label="Units" value={permit.units ?? "—"} />
           <Row label="Zone code" value={permit.zoneCodeLabel} />
@@ -149,23 +147,32 @@ export default function ZonePanel({ feature, permit, activeBuild, onClose }: Zon
           <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
             Data Sources
           </div>
-          <div className="flex flex-col gap-1.5 text-sm text-blue-600">
-            <a
-              href="https://gis-cityofchampaign.opendata.arcgis.com/datasets/a24e403a9fa245dbaaaf46f766860c40_15/explore?location=40.113600%2C-88.308850%2C13"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:underline"
-            >
-              Map data available here.
-            </a>
-            <a
-              href="https://library.municode.com/il/champaign/codes/code_of_ordinances?nodeId=MUCO_CH37ZO"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:underline"
-            >
-              City of Champaign zoning ordinances available here.
-            </a>
+          <div className="flex flex-col gap-1.5 text-sm text-gray-700">
+            <div>
+              Champaign zoning map data{" "}
+              <a
+                href="https://gis-cityofchampaign.opendata.arcgis.com/datasets/a24e403a9fa245dbaaaf46f766860c40_15/explore?location=40.113600%2C-88.308850%2C13"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline"
+              >
+                here
+              </a>
+              .
+            </div>
+            <div>
+              Champaign zoning ordinances{" "}
+              <a
+                href="https://library.municode.com/il/champaign/codes/code_of_ordinances?nodeId=MUCO_CH37ZO"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline"
+              >
+                here
+              </a>
+              .
+            </div>
+            <div>Permit data provided by the city.</div>
           </div>
         </div>
       </div>
@@ -267,23 +274,32 @@ export default function ZonePanel({ feature, permit, activeBuild, onClose }: Zon
         <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
           Data Sources
         </div>
-        <div className="flex flex-col gap-1.5 text-sm text-blue-600">
-          <a
-            href="https://gis-cityofchampaign.opendata.arcgis.com/datasets/a24e403a9fa245dbaaaf46f766860c40_15/explore?location=40.113600%2C-88.308850%2C13"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:underline"
-          >
-            Map data available here.
-          </a>
-          <a
-            href="https://library.municode.com/il/champaign/codes/code_of_ordinances?nodeId=MUCO_CH37ZO"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:underline"
-          >
-            City of Champaign zoning ordinances available here.
-          </a>
+        <div className="flex flex-col gap-1.5 text-sm text-gray-700">
+          <div>
+            Champaign zoning map data{" "}
+            <a
+              href="https://gis-cityofchampaign.opendata.arcgis.com/datasets/a24e403a9fa245dbaaaf46f766860c40_15/explore?location=40.113600%2C-88.308850%2C13"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline"
+            >
+              here
+            </a>
+            .
+          </div>
+          <div>
+            Champaign zoning ordinances{" "}
+            <a
+              href="https://library.municode.com/il/champaign/codes/code_of_ordinances?nodeId=MUCO_CH37ZO"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline"
+            >
+              here
+            </a>
+            .
+          </div>
+          <div>Permit data provided by the city.</div>
         </div>
       </div>
     </div>

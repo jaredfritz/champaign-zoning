@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import {
   ALL_ZONE_CODES,
@@ -21,17 +21,43 @@ interface FilterBarProps {
   disabled?: boolean;
 }
 
-// ─── Pill styles ──────────────────────────────────────────────────────────────
-
-function pillClasses(state: SelectionState, color: string) {
-  if (state === "all") return { bg: color, border: "transparent", text: "#1b2b3c" };
-  if (state === "partial") return { bg: `${color}33`, border: color, text: "#374151" };
-  return { bg: "#fff", border: "#e5e7eb", text: "#9ca3af" };
+function ColorCheckbox({
+  checked,
+  indeterminate,
+  onChange,
+  ariaLabel,
+  color,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  onChange: () => void;
+  ariaLabel: string;
+  color: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={indeterminate ? "mixed" : checked}
+      onClick={onChange}
+      aria-label={ariaLabel}
+      className="h-4 w-4 rounded-[3px] border transition-colors focus:outline-none focus:ring-1 focus:ring-gray-300"
+      style={{
+        borderColor: color,
+        backgroundColor: checked ? color : indeterminate ? `${color}66` : "transparent",
+      }}
+    />
+  );
 }
 
-// ─── Individual code chip ─────────────────────────────────────────────────────
+function stateToChecked(state: SelectionState): { checked: boolean; indeterminate: boolean } {
+  return {
+    checked: state === "all",
+    indeterminate: state === "partial",
+  };
+}
 
-function CodeChip({
+function CodeRow({
   code,
   description,
   color,
@@ -45,87 +71,71 @@ function CodeChip({
   onToggle: () => void;
 }) {
   return (
-    <button
-      onClick={onToggle}
-      title={description}
-      className="min-h-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all hover:opacity-90"
-      style={
-        active
-          ? { backgroundColor: color, borderColor: "transparent", color: "#1b2b3c" }
-          : { backgroundColor: "#fff", borderColor: "#e5e7eb", color: "#9ca3af" }
-      }
-    >
-      <span
-        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-        style={{ backgroundColor: active ? "rgba(0,0,0,0.3)" : color }}
+    <label className="flex items-center gap-2.5 py-1.5 text-xs text-gray-700 cursor-pointer select-none">
+      <ColorCheckbox
+        checked={active}
+        onChange={onToggle}
+        ariaLabel={`Toggle ${code}`}
+        color={color}
       />
-      {code}
-    </button>
+      <span className="font-medium">{code}</span>
+      <span className="text-gray-500 truncate" title={description}>{description}</span>
+    </label>
   );
 }
 
-// ─── Subgroup row ─────────────────────────────────────────────────────────────
-
-function SubgroupRow({
+function SubgroupBlock({
+  districtId,
   subgroup,
   activeCodes,
-  color,
+  districtColor,
   onChange,
 }: {
+  districtId: string;
   subgroup: ZoneSubgroup;
   activeCodes: Set<string>;
-  color: string;
+  districtColor: string;
   onChange: (codes: Set<string>) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const state = subgroupSelectionState(subgroup, activeCodes);
-  const styles = pillClasses(state, color);
-  const multiCode = subgroup.codes.length > 1;
+  const { checked, indeterminate } = stateToChecked(state);
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-1">
-        {/* Subgroup toggle pill */}
+    <div className="border-l border-gray-200 pl-3 ml-1">
+      <div className="flex items-center gap-2 py-1">
         <button
-          onClick={() => onChange(toggleSubgroup(subgroup, activeCodes))}
-          title={subgroup.description}
-          className="min-h-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all hover:opacity-90"
-          style={{
-            backgroundColor: styles.bg,
-            borderColor: styles.border,
-            color: styles.text,
-          }}
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="w-6 h-6 inline-flex items-center justify-center rounded hover:bg-gray-100 text-gray-500"
+          aria-label={`Toggle ${subgroup.label}`}
         >
-          <span
-            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-            style={{ backgroundColor: state !== "none" ? color : "#d1d5db" }}
+          <ChevronDown
+            className="w-3.5 h-3.5 transition-transform"
+            style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}
           />
-          {subgroup.label}
         </button>
 
-        {/* Expand toggle (only if there are multiple codes) */}
-        {multiCode && (
-          <button
-            onClick={() => setExpanded((v) => !v)}
-            className="w-10 h-10 inline-flex items-center justify-center rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-          >
-            <ChevronDown
-              className="w-3.5 h-3.5 transition-transform"
-              style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}
-            />
-          </button>
-        )}
+        <label className="flex items-center gap-2 text-xs text-gray-800 cursor-pointer select-none min-w-0">
+          <ColorCheckbox
+            checked={checked}
+            indeterminate={indeterminate}
+            onChange={() => onChange(toggleSubgroup(subgroup, activeCodes))}
+            ariaLabel={`Toggle subgroup ${subgroup.label}`}
+            color={districtColor}
+          />
+          <span className="font-medium truncate" title={subgroup.description}>{subgroup.label}</span>
+        </label>
       </div>
 
-      {/* Individual codes (only shown when expanded; single-code subgroups use the pill directly) */}
       {expanded && (
-        <div className="flex flex-wrap gap-1.5 pl-3 border-l-2" style={{ borderColor: `${color}55` }}>
+        <div className="pl-8 pb-1">
           {subgroup.codes.map(({ code, description }) => (
-            <CodeChip
-              key={code}
+            <CodeRow
+              key={`${districtId}-${subgroup.id}-${code}`}
               code={code}
               description={description}
-              color={color}
+              color={districtColor}
               active={activeCodes.has(code)}
               onToggle={() => onChange(toggleCode(code, activeCodes))}
             />
@@ -136,9 +146,7 @@ function SubgroupRow({
   );
 }
 
-// ─── District dropdown panel ──────────────────────────────────────────────────
-
-function DistrictPanel({
+function DistrictBlock({
   district,
   activeCodes,
   onChange,
@@ -147,134 +155,90 @@ function DistrictPanel({
   activeCodes: Set<string>;
   onChange: (codes: Set<string>) => void;
 }) {
-  return (
-    <div className="flex flex-col gap-3 p-4 min-w-56 max-h-[min(70vh,30rem)] overflow-auto">
-      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-        {district.label}
-      </div>
-      {district.subgroups.map((sg) => (
-        <SubgroupRow
-          key={sg.id}
-          subgroup={sg}
-          activeCodes={activeCodes}
-          color={district.color}
-          onChange={onChange}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ─── District pill ────────────────────────────────────────────────────────────
-
-function DistrictPill({
-  district,
-  activeCodes,
-  onChange,
-}: {
-  district: ZoneDistrict;
-  activeCodes: Set<string>;
-  onChange: (codes: Set<string>) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
   const state = districtSelectionState(district, activeCodes);
-  const styles = pillClasses(state, district.color);
-
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
+  const { checked, indeterminate } = stateToChecked(state);
 
   return (
-    <div ref={ref} className="relative">
-      <div
-        className="flex items-center rounded-full border transition-all text-xs font-medium overflow-hidden"
-        style={{
-          backgroundColor: styles.bg,
-          borderColor: styles.border,
-          color: styles.text,
-        }}
-      >
-        {/* Main toggle area */}
+    <div className="rounded-lg border border-gray-200 bg-white">
+      <div className="flex items-center gap-2 px-2.5 py-2">
         <button
-          onClick={() => onChange(toggleDistrict(district, activeCodes))}
-          className="min-h-10 flex items-center gap-1.5 pl-3 pr-2 py-1.5 hover:opacity-80 transition-opacity"
-        >
-          <span
-            className="w-2 h-2 rounded-full flex-shrink-0"
-            style={{ backgroundColor: state !== "none" ? district.color : "#d1d5db" }}
-          />
-          {district.shortLabel}
-        </button>
-
-        {/* Divider + expand chevron */}
-        <div
-          className="w-px self-stretch"
-          style={{ backgroundColor: state !== "none" ? `${district.color}66` : "#f3f4f6" }}
-        />
-        <button
-          onClick={() => setOpen((v) => !v)}
-          className="min-h-10 px-2 py-1.5 hover:opacity-80 transition-opacity"
-          aria-label={`Expand ${district.label}`}
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="w-6 h-6 inline-flex items-center justify-center rounded hover:bg-gray-100 text-gray-500"
+          aria-label={`Toggle ${district.label}`}
         >
           <ChevronDown
             className="w-3.5 h-3.5 transition-transform"
-            style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+            style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}
           />
         </button>
+
+        <label className="flex items-center gap-2 text-xs text-gray-800 cursor-pointer select-none min-w-0">
+          <ColorCheckbox
+            checked={checked}
+            indeterminate={indeterminate}
+            onChange={() => onChange(toggleDistrict(district, activeCodes))}
+            ariaLabel={`Toggle district ${district.label}`}
+            color={district.color}
+          />
+          <span className="font-medium truncate">{district.shortLabel}</span>
+          <span className="text-gray-500 truncate">{district.label}</span>
+        </label>
       </div>
 
-      {/* Floating panel */}
-      {open && (
-        <div className="absolute top-full right-0 sm:left-0 sm:right-auto mt-2 z-50 bg-white rounded-xl border border-gray-100 shadow-xl min-w-max max-w-[calc(100vw-1rem)]">
-          <DistrictPanel
-            district={district}
-            activeCodes={activeCodes}
-            onChange={onChange}
-          />
+      {expanded && (
+        <div className="px-2.5 pb-2.5 space-y-1">
+          {district.subgroups.map((subgroup) => (
+            <SubgroupBlock
+              key={`${district.id}-${subgroup.id}`}
+              districtId={district.id}
+              subgroup={subgroup}
+              activeCodes={activeCodes}
+              districtColor={district.color}
+              onChange={onChange}
+            />
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-// ─── FilterBar ────────────────────────────────────────────────────────────────
-
 export default function FilterBar({ activeCodes, onChange, disabled }: FilterBarProps) {
-  const allActive = activeCodes.size === ALL_ZONE_CODES.length;
+  const allActive = useMemo(() => activeCodes.size === ALL_ZONE_CODES.length, [activeCodes]);
 
   return (
-    <div className={`flex items-center gap-2 flex-wrap transition-opacity duration-150 ${disabled ? "opacity-40 pointer-events-none" : ""}`}>
-      {/* All toggle */}
-      <button
-        onClick={() =>
-          allActive ? onChange(new Set()) : onChange(new Set(ALL_ZONE_CODES))
-        }
-        className={`min-h-10 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-          allActive
-            ? "bg-gray-900 text-white border-gray-900"
-            : "bg-white text-gray-400 border-gray-200 hover:border-gray-400 hover:text-gray-600"
-        }`}
-      >
-        All
-      </button>
+    <div className={`space-y-2 ${disabled ? "opacity-40 pointer-events-none" : ""}`}>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onChange(new Set(ALL_ZONE_CODES))}
+          className={`h-8 px-2.5 rounded border text-xs transition-colors ${
+            allActive
+              ? "bg-gray-900 text-white border-gray-900"
+              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+          }`}
+        >
+          Select all
+        </button>
+        <button
+          onClick={() => onChange(new Set())}
+          className="h-8 px-2.5 rounded border text-xs text-gray-700 border-gray-300 bg-white hover:bg-gray-50 transition-colors"
+        >
+          Clear all
+        </button>
+      </div>
 
-      {DISTRICTS.map((district) => (
-        <DistrictPill
-          key={district.id}
-          district={district}
-          activeCodes={activeCodes}
-          onChange={onChange}
-        />
-      ))}
+      <div className="space-y-2">
+        {DISTRICTS.map((district) => (
+          <DistrictBlock
+            key={district.id}
+            district={district}
+            activeCodes={activeCodes}
+            onChange={onChange}
+          />
+        ))}
+      </div>
     </div>
   );
 }

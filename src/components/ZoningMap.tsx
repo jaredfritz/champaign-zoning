@@ -22,6 +22,53 @@ const MF_PERMIT_COLOR = "#E69F00";
 const LEGEND_RADIUS_1_UNIT_PX = 3;
 const LEGEND_RADIUS_100_UNITS_PX = 17;
 
+function getFeatureCollectionBounds(data: GeoJSON.FeatureCollection): [number, number, number, number] | null {
+  let minLng = Number.POSITIVE_INFINITY;
+  let minLat = Number.POSITIVE_INFINITY;
+  let maxLng = Number.NEGATIVE_INFINITY;
+  let maxLat = Number.NEGATIVE_INFINITY;
+
+  function visitCoords(coords: unknown): void {
+    if (!Array.isArray(coords)) return;
+    if (
+      coords.length >= 2 &&
+      typeof coords[0] === "number" &&
+      typeof coords[1] === "number"
+    ) {
+      const lng = coords[0];
+      const lat = coords[1];
+      if (lng < minLng) minLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lng > maxLng) maxLng = lng;
+      if (lat > maxLat) maxLat = lat;
+      return;
+    }
+    for (const item of coords) visitCoords(item);
+  }
+
+  for (const feature of data.features) {
+    if (!feature.geometry) continue;
+    if (feature.geometry.type === "GeometryCollection") {
+      for (const geom of feature.geometry.geometries) {
+        if ("coordinates" in geom) visitCoords(geom.coordinates);
+      }
+    } else if ("coordinates" in feature.geometry) {
+      visitCoords(feature.geometry.coordinates);
+    }
+  }
+
+  if (
+    !Number.isFinite(minLng) ||
+    !Number.isFinite(minLat) ||
+    !Number.isFinite(maxLng) ||
+    !Number.isFinite(maxLat)
+  ) {
+    return null;
+  }
+
+  return [minLng, minLat, maxLng, maxLat];
+}
+
 function applyThoroughfareLabelDraft(map: MapLibreMap) {
   const style = map.getStyle();
   if (!style?.layers) return;
@@ -133,6 +180,8 @@ interface ZoningMapProps {
   activeBuild: BuildType | null;
   permitsData: GeoJSON.FeatureCollection;
   showPermits: boolean;
+  permitRenderMode: "points" | "heatmap";
+  permitYearRange: { from: number; to: number } | null;
   selectedId: number | null;
   onSelectFeature: (feature: GeoJSON.Feature<GeoJSON.Geometry, ZoneFeatureProperties> | null) => void;
   onSelectPermit: (permit: SelectedPermit | null) => void;
@@ -145,6 +194,8 @@ export default function ZoningMap({
   activeBuild,
   permitsData,
   showPermits,
+  permitRenderMode,
+  permitYearRange,
   selectedId,
   onSelectFeature,
   onSelectPermit,
@@ -179,7 +230,22 @@ export default function ZoningMap({
 
     // Draft map readability tuning: stronger major thoroughfare labels.
     applyThoroughfareLabelDraft(map);
-  }, []);
+
+    const bounds = getFeatureCollectionBounds(data);
+    if (bounds) {
+      map.fitBounds(
+        [
+          [bounds[0], bounds[1]],
+          [bounds[2], bounds[3]],
+        ],
+        {
+          padding: 36,
+          duration: 0,
+          maxZoom: 15,
+        }
+      );
+    }
+  }, [data]);
 
   // Fly to searched address when pin changes
   useEffect(() => {
@@ -195,7 +261,7 @@ export default function ZoningMap({
     (e: MapMouseEvent) => {
       const map = mapRef.current?.getMap();
       if (!map) return;
-      if (showPermits) {
+      if (showPermits && permitRenderMode === "points") {
         const permitFeatures = map.queryRenderedFeatures(e.point, { layers: ["residential-permits-circles"] });
         if (permitFeatures.length > 0) {
           map.getCanvas().style.cursor = "pointer";
@@ -235,7 +301,7 @@ export default function ZoningMap({
         setTooltip(null);
       }
     },
-    [hoveredId, hoveredPermitId, activeBuild, showPermits]
+    [hoveredId, hoveredPermitId, activeBuild, showPermits, permitRenderMode]
   );
 
   const handleMouseLeave = useCallback(() => {
@@ -250,7 +316,7 @@ export default function ZoningMap({
     (e: MapMouseEvent) => {
       const map = mapRef.current?.getMap();
       if (!map) return;
-      if (showPermits) {
+      if (showPermits && permitRenderMode === "points") {
         const permitFeatures = map.queryRenderedFeatures(e.point, { layers: ["residential-permits-circles"] });
         if (permitFeatures.length > 0) {
           const p = permitFeatures[0].properties as unknown as PermitFeatureProperties;
@@ -292,7 +358,7 @@ export default function ZoningMap({
         onSelectFeature(null);
       }
     },
-    [data, onSelectFeature, onSelectPermit, showPermits]
+    [data, onSelectFeature, onSelectPermit, showPermits, permitRenderMode]
   );
 
   const inBuildMode = activeBuild !== null;
@@ -354,6 +420,13 @@ export default function ZoningMap({
     ["==", ["get", "OBJECTID"], hoveredId ?? -1], 1.5,
     0.5,
   ];
+  const permitYearFilter = permitYearRange
+    ? ([
+        "all",
+        [">=", ["to-number", ["get", "year"], 0], permitYearRange.from],
+        ["<=", ["to-number", ["get", "year"], 0], permitYearRange.to],
+      ] as unknown as FilterSpecification)
+    : undefined;
 
   return (
     <div className="relative w-full h-full">
@@ -404,75 +477,136 @@ export default function ZoningMap({
         </Source>
         {showPermits && (
           <Source id="residential-permits" type="geojson" data={permitsData} generateId>
-            <Layer
-              id="residential-permits-circles"
-              type="circle"
-              paint={{
-                "circle-color": [
-                  "match",
-                  ["get", "building_type"],
-                  "SF",
-                  SF_PERMIT_COLOR,
-                  "MF",
-                  MF_PERMIT_COLOR,
-                  "#6b7280",
-                ],
-                "circle-radius": [
-                  "case",
-                  ["==", ["id"], hoveredPermitId ?? -1],
-                  [
+            {permitRenderMode === "points" && (
+              <Layer
+                id="residential-permits-circles"
+                type="circle"
+                filter={permitYearFilter}
+                paint={{
+                  "circle-color": [
+                    "match",
+                    ["get", "building_type"],
+                    "SF",
+                    SF_PERMIT_COLOR,
+                    "MF",
+                    MF_PERMIT_COLOR,
+                    "#6b7280",
+                  ],
+                  "circle-radius": [
+                    "case",
+                    ["==", ["id"], hoveredPermitId ?? -1],
+                    [
+                      "interpolate",
+                      ["linear"],
+                      ["to-number", ["get", "units"], 1],
+                      1,
+                      5,
+                      2,
+                      6,
+                      4,
+                      8,
+                      8,
+                      10.5,
+                      20,
+                      14,
+                      50,
+                      17,
+                      150,
+                      21,
+                      322,
+                      24,
+                    ],
+                    [
+                      "interpolate",
+                      ["linear"],
+                      ["to-number", ["get", "units"], 1],
+                      1,
+                      3.5,
+                      2,
+                      4.5,
+                      4,
+                      6.5,
+                      8,
+                      9,
+                      20,
+                      12.5,
+                      50,
+                      15.5,
+                      150,
+                      19.5,
+                      322,
+                      22.5,
+                    ],
+                  ],
+                  "circle-stroke-color": "#ffffff",
+                  "circle-stroke-width": [
+                    "case",
+                    ["==", ["id"], hoveredPermitId ?? -1],
+                    2,
+                    1,
+                  ],
+                  "circle-opacity": 0.78,
+                }}
+              />
+            )}
+            {permitRenderMode === "heatmap" && (
+              <Layer
+                id="residential-permits-heatmap"
+                type="heatmap"
+                filter={permitYearFilter}
+                paint={{
+                  "heatmap-weight": [
                     "interpolate",
                     ["linear"],
                     ["to-number", ["get", "units"], 1],
                     1,
-                    4.5,
-                    2,
-                    5.5,
-                    4,
-                    7.5,
-                    8,
+                    0.2,
                     10,
-                    20,
-                    13.5,
+                    0.5,
                     50,
-                    16.5,
+                    0.8,
                     150,
-                    20.5,
-                    322,
-                    23.5,
+                    1,
                   ],
-                  [
+                  "heatmap-intensity": [
                     "interpolate",
                     ["linear"],
-                    ["to-number", ["get", "units"], 1],
-                    1,
-                    3,
-                    2,
-                    4,
-                    4,
-                    6,
-                    8,
-                    8.5,
-                    20,
-                    12,
-                    50,
-                    15,
-                    150,
-                    19,
-                    322,
-                    22,
+                    ["zoom"],
+                    10,
+                    0.5,
+                    14,
+                    0.9,
                   ],
-                ],
-                "circle-stroke-color": "#ffffff",
-                "circle-stroke-width": [
-                  "case",
-                  ["==", ["id"], hoveredPermitId ?? -1],
-                  2,
-                  1,
-                ],
-                "circle-opacity": 0.78,
-              }}
-            />
+                  "heatmap-color": [
+                    "interpolate",
+                    ["linear"],
+                    ["heatmap-density"],
+                    0,
+                    "rgba(99,102,241,0)",
+                    0.2,
+                    "rgba(56,189,248,0.65)",
+                    0.45,
+                    "rgba(34,197,94,0.75)",
+                    0.7,
+                    "rgba(250,204,21,0.8)",
+                    1,
+                    "rgba(239,68,68,0.9)",
+                  ],
+                  "heatmap-radius": [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    10,
+                    18,
+                    14,
+                    28,
+                    17,
+                    38,
+                  ],
+                  "heatmap-opacity": 0.85,
+                }}
+              />
+            )}
           </Source>
         )}
 
@@ -536,41 +670,58 @@ export default function ZoningMap({
           style={{ bottom: "calc(2rem + env(safe-area-inset-bottom, 0px))" }}
         >
           <div className="text-xs font-semibold text-gray-700 mb-2">Residential Permits 2014-2024</div>
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center gap-2 text-xs text-gray-600">
-              <div className="w-4 h-4 rounded-full" style={{ backgroundColor: SF_PERMIT_COLOR }} />
-              <span>Single-family (SF)</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-gray-600">
-              <div className="w-4 h-4 rounded-full" style={{ backgroundColor: MF_PERMIT_COLOR }} />
-              <span>Multifamily (MF)</span>
-            </div>
-            <div className="pt-1 mt-0.5 border-t border-gray-100 text-[11px] text-gray-500">
-              <div className="mb-1">Circle size scales by units per permit</div>
-              <div className="flex items-end gap-3">
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className="rounded-full bg-gray-500/70 border border-white"
-                    style={{
-                      width: `${LEGEND_RADIUS_1_UNIT_PX * 2}px`,
-                      height: `${LEGEND_RADIUS_1_UNIT_PX * 2}px`,
-                    }}
-                  />
-                  <span>1 unit</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className="rounded-full bg-gray-500/70 border border-white"
-                    style={{
-                      width: `${LEGEND_RADIUS_100_UNITS_PX * 2}px`,
-                      height: `${LEGEND_RADIUS_100_UNITS_PX * 2}px`,
-                    }}
-                  />
-                  <span>100 units</span>
+          {permitRenderMode === "points" ? (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 text-xs text-gray-600">
+                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: SF_PERMIT_COLOR }} />
+                <span>Single-family (SF)</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-600">
+                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: MF_PERMIT_COLOR }} />
+                <span>Multifamily (MF)</span>
+              </div>
+              <div className="pt-1 mt-0.5 border-t border-gray-100 text-[11px] text-gray-500">
+                <div className="mb-1">Circle size scales by units per permit</div>
+                <div className="flex items-end gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <div
+                      className="rounded-full bg-gray-500/70 border border-white"
+                      style={{
+                        width: `${LEGEND_RADIUS_1_UNIT_PX * 2}px`,
+                        height: `${LEGEND_RADIUS_1_UNIT_PX * 2}px`,
+                      }}
+                    />
+                    <span>1 unit</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div
+                      className="rounded-full bg-gray-500/70 border border-white"
+                      style={{
+                        width: `${LEGEND_RADIUS_100_UNITS_PX * 2}px`,
+                        height: `${LEGEND_RADIUS_100_UNITS_PX * 2}px`,
+                      }}
+                    />
+                    <span>100 units</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="text-[11px] text-gray-500">Heat intensity weighted by unit count</div>
+              <div
+                className="h-2.5 w-44 rounded"
+                style={{
+                  background:
+                    "linear-gradient(90deg, rgba(56,189,248,0.65) 0%, rgba(34,197,94,0.75) 35%, rgba(250,204,21,0.8) 65%, rgba(239,68,68,0.9) 100%)",
+                }}
+              />
+              <div className="flex items-center justify-between text-[11px] text-gray-500">
+                <span>Lower units</span>
+                <span>Higher units</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {showAnyLegend && (
@@ -627,41 +778,58 @@ export default function ZoningMap({
               {showPermits && (
                 <div className={inBuildMode ? "pt-2 mt-2 border-t border-gray-100" : ""}>
                   <div className="text-xs font-semibold text-gray-700 mb-2">Residential Permits 2014-2024</div>
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2 text-xs text-gray-600">
-                      <div className="w-4 h-4 rounded-full" style={{ backgroundColor: SF_PERMIT_COLOR }} />
-                      <span>Single-family (SF)</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-600">
-                      <div className="w-4 h-4 rounded-full" style={{ backgroundColor: MF_PERMIT_COLOR }} />
-                      <span>Multifamily (MF)</span>
-                    </div>
-                    <div className="pt-1 mt-0.5 border-t border-gray-100 text-[11px] text-gray-500">
-                      <div className="mb-1">Circle size scales by units per permit</div>
-                      <div className="flex items-end gap-3">
-                        <div className="flex items-center gap-1.5">
-                          <div
-                            className="rounded-full bg-gray-500/70 border border-white"
-                            style={{
-                              width: `${LEGEND_RADIUS_1_UNIT_PX * 2}px`,
-                              height: `${LEGEND_RADIUS_1_UNIT_PX * 2}px`,
-                            }}
-                          />
-                          <span>1 unit</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <div
-                            className="rounded-full bg-gray-500/70 border border-white"
-                            style={{
-                              width: `${LEGEND_RADIUS_100_UNITS_PX * 2}px`,
-                              height: `${LEGEND_RADIUS_100_UNITS_PX * 2}px`,
-                            }}
-                          />
-                          <span>100 units</span>
+                  {permitRenderMode === "points" ? (
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2 text-xs text-gray-600">
+                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: SF_PERMIT_COLOR }} />
+                        <span>Single-family (SF)</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-gray-600">
+                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: MF_PERMIT_COLOR }} />
+                        <span>Multifamily (MF)</span>
+                      </div>
+                      <div className="pt-1 mt-0.5 border-t border-gray-100 text-[11px] text-gray-500">
+                        <div className="mb-1">Circle size scales by units per permit</div>
+                        <div className="flex items-end gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <div
+                              className="rounded-full bg-gray-500/70 border border-white"
+                              style={{
+                                width: `${LEGEND_RADIUS_1_UNIT_PX * 2}px`,
+                                height: `${LEGEND_RADIUS_1_UNIT_PX * 2}px`,
+                              }}
+                            />
+                            <span>1 unit</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div
+                              className="rounded-full bg-gray-500/70 border border-white"
+                              style={{
+                                width: `${LEGEND_RADIUS_100_UNITS_PX * 2}px`,
+                                height: `${LEGEND_RADIUS_100_UNITS_PX * 2}px`,
+                              }}
+                            />
+                            <span>100 units</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="text-[11px] text-gray-500">Heat intensity weighted by unit count</div>
+                      <div
+                        className="h-2.5 w-40 rounded"
+                        style={{
+                          background:
+                            "linear-gradient(90deg, rgba(56,189,248,0.65) 0%, rgba(34,197,94,0.75) 35%, rgba(250,204,21,0.8) 65%, rgba(239,68,68,0.9) 100%)",
+                        }}
+                      />
+                      <div className="flex items-center justify-between text-[11px] text-gray-500">
+                        <span>Lower units</span>
+                        <span>Higher units</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

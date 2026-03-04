@@ -9,7 +9,7 @@ function getApiKey(): string | null {
 export async function GET(req: NextRequest) {
   const key = getApiKey();
   if (!key) {
-    return NextResponse.json({ error: "Google Maps API key not configured" }, { status: 500 });
+    return NextResponse.json({ predictions: [], source: "google", error: "Google Maps API key not configured" });
   }
 
   const input = req.nextUrl.searchParams.get("q")?.trim() ?? "";
@@ -27,12 +27,12 @@ export async function GET(req: NextRequest) {
   const url = `${AUTOCOMPLETE_ENDPOINT}?${params.toString()}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
-    return NextResponse.json({ error: "Autocomplete lookup failed" }, { status: 502 });
+    return NextResponse.json({ predictions: [], source: "google", error: "Autocomplete lookup failed" });
   }
 
   const payload = await res.json();
   if (payload.status !== "OK" && payload.status !== "ZERO_RESULTS") {
-    return NextResponse.json({ error: payload.status }, { status: 502 });
+    return NextResponse.json({ predictions: [], source: "google", error: payload.status });
   }
 
   const predictions = (payload.predictions ?? []).slice(0, 6).map((p: {
@@ -46,5 +46,5 @@ export async function GET(req: NextRequest) {
     secondaryText: p.structured_formatting?.secondary_text ?? "",
   }));
 
-  return NextResponse.json({ predictions });
+  return NextResponse.json({ predictions, source: "google" });
 }

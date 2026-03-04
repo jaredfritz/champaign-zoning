@@ -141,9 +141,32 @@ export async function autocompleteAddress(query: string): Promise<AddressSuggest
   if (q.length < 3) return [];
   try {
     const res = await fetch(`/api/google/autocomplete?q=${encodeURIComponent(q)}`);
-    if (!res.ok) return [];
+    if (!res.ok) throw new Error("google autocomplete request failed");
     const data = await res.json();
-    return Array.isArray(data.predictions) ? data.predictions : [];
+    const googlePredictions = Array.isArray(data.predictions) ? data.predictions : [];
+    if (googlePredictions.length > 0) return googlePredictions;
+  } catch {
+    // Continue to fallback provider.
+  }
+
+  try {
+    const fallbackQuery = /champaign|urbana/i.test(q) ? q : `${q}, Champaign, IL`;
+    const fallbackUrl =
+      `https://nominatim.openstreetmap.org/search` +
+      `?q=${encodeURIComponent(fallbackQuery)}` +
+      `&format=json&addressdetails=1&limit=6&countrycodes=us`;
+    const fallbackRes = await fetch(fallbackUrl, {
+      headers: { "User-Agent": "ChampaignZoningTool/1.0" },
+    });
+    if (!fallbackRes.ok) return [];
+    const rows = await fallbackRes.json();
+    if (!Array.isArray(rows)) return [];
+    return rows.map((row: { display_name: string; place_id: string | number }) => ({
+      description: row.display_name,
+      placeId: `nominatim-${row.place_id}`,
+      primaryText: row.display_name.split(",")[0] ?? row.display_name,
+      secondaryText: row.display_name,
+    }));
   } catch {
     return [];
   }
